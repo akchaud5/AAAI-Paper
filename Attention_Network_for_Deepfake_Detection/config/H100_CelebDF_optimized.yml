@@ -1,0 +1,50 @@
+model:
+  name: Recce
+  num_classes: 2
+
+config:
+  lambda_1: 0.1
+  lambda_2: 0.1
+  distribute:
+    backend: nccl
+  optimizer:
+    name: adam
+    lr: 0.0002
+    weight_decay: 0.00001
+    # H100 optimizations
+    betas: [0.9, 0.999]
+    eps: 1e-8
+    amsgrad: False
+  scheduler:
+    name: StepLR
+    step_size: 15000  # Adjusted for larger batch size
+    gamma: 0.5
+  resume: False
+  resume_best: False
+  id: CelebDF_H100_optimized
+  loss: binary_ce
+  metric: Acc
+  debug: False
+  device: "cuda:0"
+  log_steps: 50  # More frequent logging
+  
+  # H100 specific optimizations
+  mixed_precision: True
+  compile_model: True
+  channels_last: True
+  gradient_clipping: 1.0
+  checkpoint_freq: 1000  # Save every 1000 steps
+
+data:
+  train_batch_size: 64    # Doubled for H100
+  val_batch_size: 128     # Larger for inference
+  test_batch_size: 128    # Larger for inference
+  name: CelebDF
+  file: "./config/dataset/CelebDF_H100.yml"
+  train_branch: "train_cfg"
+  val_branch: "test_cfg"
+  test_branch: "test_cfg"
+  num_workers: 12         # More workers for H100
+  pin_memory: True
+  persistent_workers: True
+  prefetch_factor: 4      # Prefetch more batches

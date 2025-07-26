@@ -1,0 +1,39 @@
+train_cfg:
+  root: "/path/to/CelebDF_extracted"  # Update this path
+  split: "train"
+  balance: True
+  log_steps: 1000
+  val_steps: 1000
+  num_steps: 92000
+  transforms:
+    - name: "Resize"
+      params:
+        height: 299
+        width: 299
+    - name: "HorizontalFlip"
+      params:
+        p: 0.5
+    - name: "ColorJitter"  # Additional augmentation
+      params:
+        brightness: 0.1
+        contrast: 0.1
+        saturation: 0.1
+        hue: 0.05
+    - name: "Normalize"
+      params:
+        mean: [0.5, 0.5, 0.5]
+        std: [0.5, 0.5, 0.5]
+
+test_cfg:
+  root: "/path/to/CelebDF_extracted"  # Update this path
+  split: "test"
+  balance: False
+  transforms:
+    - name: "Resize"
+      params:
+        height: 299
+        width: 299
+    - name: "Normalize"
+      params:
+        mean: [0.5, 0.5, 0.5]
+        std: [0.5, 0.5, 0.5]
