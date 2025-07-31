@@ -1,0 +1,58 @@
+# Large video files
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# Model checkpoints and weights
+checkpoints/
+checkpoints_*/
+*.pt
+*.pth
+*.h5
+*.pkl
+
+# Dataset files
+*.zip
+celebdb/
+celebdb_*/
+YouTube-real/
+CelebDF_extracted/
+FaceForensics++_extracted/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Virtual environment
+venv/
+env/
+.env
+
+# Logs and runs
+logs/
+runs/
+*.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Test files
+test_faces/

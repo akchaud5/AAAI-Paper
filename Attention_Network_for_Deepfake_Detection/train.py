@@ -2,12 +2,18 @@ import os
 import yaml
 import argparse
 import torch
+
+# H100 optimizations
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.set_float32_matmul_precision("high")
+torch.backends.cudnn.benchmark = True
+
 from trainer.exp_mgpu_trainer import ExpMultiGpuTrainer
 from trainer.utils import setup_for_distributed, cleanup
 
 def main():
     parser = argparse.ArgumentParser(description="config")
-    parser.add_argument("--config", type=str, default="/content/drive/MyDrive/model01/RECCE-main/config/Recce.yml", help="Specify the path of the configuration file to be used.")
+    parser.add_argument("--config", type=str, default="config/Recce.yml", help="Specify the path of the configuration file to be used.")
     args = parser.parse_args()
     
     # Load main configuration

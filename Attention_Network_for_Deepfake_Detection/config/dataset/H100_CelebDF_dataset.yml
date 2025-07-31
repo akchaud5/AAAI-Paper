@@ -1,0 +1,11 @@
+data:
+  root: ./celebdb
+  classes:
+    real: [Celeb-real, YouTube-real]
+    fake: [Celeb-synthesis]
+  train_split: 0.9
+  val_split: 0.1
+  img_size: 299
+  train_batch_size: 64
+  val_batch_size: 64
+  num_workers: 12

@@ -1,5 +1,5 @@
 train_cfg:
-  root: "/path/to/CelebDF_extracted"  # Update this path
+  root: "/workspace/AAAI-Paper/Attention_Network_for_Deepfake_Detection/celebdb"
   split: "train"
   balance: True
   log_steps: 1000
@@ -13,7 +13,7 @@ train_cfg:
     - name: "HorizontalFlip"
       params:
         p: 0.5
-    - name: "ColorJitter"  # Additional augmentation
+    - name: "ColorJitter"
       params:
         brightness: 0.1
         contrast: 0.1
@@ -25,7 +25,7 @@ train_cfg:
         std: [0.5, 0.5, 0.5]
 
 test_cfg:
-  root: "/path/to/CelebDF_extracted"  # Update this path
+  root: "/workspace/AAAI-Paper/Attention_Network_for_Deepfake_Detection/celebdb"
   split: "test"
   balance: False
   transforms:

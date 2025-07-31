@@ -1,37 +1,68 @@
+# config/Recce.yml
 model:
   name: Recce
   num_classes: 2
 
 config:
-  lambda_1: 0.1
-  lambda_2: 0.1
-  distribute:
-    backend: nccl
+  # ----------------- optimization -----------------
   optimizer:
-    name: adam
+    name: adam           # (use adamw + fused_adamw: True only if you used it earlier)
     lr: 0.0002
     weight_decay: 0.00001
+
+  # Adaptive LR when validation plateaus (prevents oscillation)
   scheduler:
-    name: StepLR
-    step_size: 22500
-    gamma: 0.5
-  resume: True
-  resume_best: False
-  id: Celebdf111
-  loss: binary_ce
-  metric: Acc
+    name: ReduceLROnPlateau
+    mode: max
+    factor: 0.5
+    patience: 3
+    threshold: 0.001
+    threshold_mode: abs
+    min_lr: 1.0e-6
+
+  # ----------------- run control ------------------
+  epochs: 100            # high ceiling; early-stop will finish earlier
+  resume: True           # set to False for a fresh run
+  resume_best: True      # resume from checkpoints_celebclean_k120/best_model.pt if present
+  extra_epochs: 100      # when resuming from best, allow up to +100 more epochs
+
+  # Early stop on a smoothed (moving-median) video‑AUC
+  early_stop:
+    mode: max
+    patience: 10          # epochs with no improvement
+    min_delta: 0.001     # required AUC improvement
+    smooth_k: 3          # moving-median window size
+    min_epochs: 20        # do not stop before this
+
+  # ----------------- stability toggles ------------
+  allow_tf32: True
+  channels_last: True
+  compile_model: True
+  fused_adamw: False      # keep False unless your previous run used fused AdamW
+  cudnn_benchmark: True
+  use_ema_eval: True      # EMA weights used only for evaluation/checkpointing
+  deterministic_val: True
+  seed: 42
+
+  # ----------------- I/O & misc -------------------
+  save_dir: "./checkpoints_celebclean_k120"   # new folder to avoid mixing with old runs
+  log_dir: "./runs/celebclean_k120_tb"
   debug: False
   device: "cuda:0"
-  ckpt: "/content/drive/MyDrive/model01/step_2048_model"
-  log_steps: 100
+  log_steps: 200
+  id: CelebClean_k120_run1                     # run id written to TensorBoard, etc.
+  ckpt: ""                                     # leave empty => auto-pick best_model.pt when resume_best=True
 
 data:
-  train_batch_size: 32
-  val_batch_size: 64
-  test_batch_size: 64
-  name: DFDC
-  file: "/content/drive/MyDrive/model01/RECCE-main/config/dataset/dfdc.yml"
+  name: CelebDF
+  file: "config/dataset/CelebDF.yml"  # (this file points to your celebdb_clean paths)
+  train_batch_size: 25
+  val_batch_size: 25
+  test_batch_size: 25
+  num_workers: 4
+  pin_memory: True
+  persistent_workers: False
+  prefetch_factor: 2
   train_branch: "train_cfg"
-  val_branch: "test_cfg"
+  val_branch: "val_cfg"
   test_branch: "test_cfg"
-  num_workers: 1
