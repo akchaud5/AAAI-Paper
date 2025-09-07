@@ -648,8 +648,8 @@ transforms:
 | Training → Testing | Accuracy | AUC-ROC | Notes |
 |-------------------|----------|---------|--------|
 | CelebDF → CelebDF | 93.84% | 95.66% | Within-dataset (excellent) |
-| CelebDF → DFDC | 87.51% | - | Cross-dataset evaluation |
-| Performance Drop | 6.33% | - | Excellent generalization |
+| CelebDF → DFDC | 87.94% | - | Cross-dataset evaluation |
+| Performance Drop | 5.90% | - | Excellent generalization |
 
 ## 🔧 Troubleshooting
 
