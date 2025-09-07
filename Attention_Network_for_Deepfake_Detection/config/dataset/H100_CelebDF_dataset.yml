@@ -1,11 +1,66 @@
-data:
-  root: ./celebdb
-  classes:
-    real: [Celeb-real, YouTube-real]
-    fake: [Celeb-synthesis]
-  train_split: 0.9
-  val_split: 0.1
-  img_size: 299
-  train_batch_size: 64
-  val_batch_size: 64
-  num_workers: 12
+train_cfg:
+  root: "/workspace/AAAI-Paper/Attention_Network_for_Deepfake_Detection/celebdb_official_splits/train"
+  split: "train"
+  balance: true
+  num_candidates: 22
+  dedup_threshold: 10  
+  log_steps: 1000
+  val_steps: 1000
+  num_steps: 92000
+  transforms:
+    - name: "Resize"
+      params:
+        height: 299
+        width: 299
+    - name: "HorizontalFlip"
+      params:
+        p: 0.5
+    - name: "ColorJitter"
+      params:
+        brightness: 0.1
+        contrast: 0.1
+        saturation: 0.1
+        hue: 0.05
+    - name: "GaussianBlur"
+      params:
+        blur_limit: [3, 7]
+        p: 0.2
+    - name: "Normalize"
+      params:
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
+        max_pixel_value: 255.0
+
+val_cfg:
+  root: "/workspace/AAAI-Paper/Attention_Network_for_Deepfake_Detection/celebdb_official_splits/val"
+  split: "val"
+  balance: false
+  num_candidates: 22
+  dedup_threshold: 10
+  transforms:
+    - name: "Resize"
+      params:
+        height: 299
+        width: 299
+    - name: "Normalize"
+      params:
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
+        max_pixel_value: 255.0
+
+test_cfg:
+  root: "/workspace/AAAI-Paper/Attention_Network_for_Deepfake_Detection/celebdb_official_splits/test"
+  split: "test"
+  balance: false
+  num_candidates: 22
+  dedup_threshold: 10
+  transforms:
+    - name: "Resize"
+      params:
+        height: 299
+        width: 299
+    - name: "Normalize"
+      params:
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
+        max_pixel_value: 255.0

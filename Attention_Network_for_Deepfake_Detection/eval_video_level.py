@@ -6,25 +6,28 @@ CelebDF video-level evaluation
 - Runs batched inference on the validation/test split (frames)
 - Aggregates frame predictions to one score per video
 - Reports frame-level and video-level Acc/AUC (plus BalAcc, F1)
-- (Optional) caps frames/video and picks them uniformly (strided) to
-  match the trainer's sampling policy.
+- (Optional) caps frames/video and picks them uniformly (strided)
+  to match the trainer's sampling policy.
 
-Usage examples
---------------
-1) Using an explicit directory:
-   python3 eval_video_level.py \
-     --val_root /path/to/celebdb_clean/celebdb_splits_reduced_k120_dedup/val \
-     --ckpt ./checkpoints_celebclean_k120/best_model.pt \
-     --device cuda:0 --batch 256 \
-     --max-per-video 120 --strided
+USAGE
+------
+(VAL) Find τ* on validation (e.g., maximize Balanced Accuracy)
+  python3 eval_video_level.py \
+    --yaml config/dataset/CelebDF.yml --branch val_cfg \
+    --ckpt ./checkpoints_celebclean_k120/best_model_ema.pt \
+    --device cuda:0 --batch 256 \
+    --max-per-video 120 --strided \
+    --search-metric balacc \
+    --save-csv runs/val_video_scores.csv
 
-2) Using the YAML dataset config:
-   python3 eval_video_level.py \
-     --yaml config/dataset/CelebDF.yml \
-     --branch val_cfg \
-     --ckpt ./checkpoints_celebclean_k120/best_model.pt \
-     --device cuda:0 --batch 256 \
-     --max-per-video 120 --strided
+(TEST) Apply the same τ* on test
+  python3 eval_video_level.py \
+    --yaml config/dataset/CelebDF.yml --branch test_cfg \
+    --ckpt ./checkpoints_celebclean_k120/best_model_ema.pt \
+    --device cuda:0 --batch 256 \
+    --max-per-video 120 --strided \
+    --apply-threshold 0.0476 \
+    --save-csv runs/test_video_scores.csv
 """
 
 import os
@@ -42,6 +45,8 @@ from sklearn.metrics import (
     accuracy_score,
     balanced_accuracy_score,
     f1_score,
+    precision_recall_fscore_support,
+    confusion_matrix,
 )
 
 # -------------------------
@@ -73,18 +78,18 @@ def build_transform(size=(299, 299)):
     ])
 
 
-def iter_val_images(val_root: str):
-    """Yield (path, label) tuples from val_root."""
+def iter_split_images(root: str):
+    """Yield (path, label) tuples from a split root folder."""
     classes = [("Celeb-real", 0), ("Celeb-synthesis", 1)]
     exts = ("*.jpg", "*.jpeg", "*.png", "*.bmp", "*.webp")
     for cname, label in classes:
-        cdir = os.path.join(val_root, cname)
+        cdir = os.path.join(root, cname)
         if not os.path.isdir(cdir):
             continue
         files = []
         for ext in exts:
             files.extend(glob.glob(os.path.join(cdir, ext)))
-        # keep deterministic order
+        # deterministic order
         files.sort()
         for p in files:
             yield p, label
@@ -127,7 +132,6 @@ def load_model(ckpt_path: str, device: torch.device):
     # ensure repo root on sys.path
     sys.path.append(os.path.dirname(__file__))
 
-    # import the same class used by your trainer
     from model.network import Recce
 
     print(f"[eval] Loading checkpoint: {ckpt_path}")
@@ -212,7 +216,7 @@ def batched_infer(model, paths, device, batch_size=256, channels_last=True, bf16
 
 
 def aggregate_by_video(paths, probs, labels):
-    """Average frame probabilities by video id and return arrays."""
+    """Average frame probabilities by video id and return arrays + map."""
     by_vid = defaultdict(list)
     vid_label = {}
     for p, y, pf in zip(paths, labels, probs):
@@ -227,21 +231,48 @@ def aggregate_by_video(paths, probs, labels):
     return vids, y_true, y_score, y_pred
 
 
-def best_balanced_threshold(scores, labels, steps=400):
+def _metric_for_pred(y_true, y_pred, metric="balacc"):
+    metric = str(metric).lower()
+    if metric == "balacc":
+        return balanced_accuracy_score(y_true, y_pred)
+    if metric == "f1":
+        return f1_score(y_true, y_pred, zero_division=0)
+    if metric == "acc":
+        return accuracy_score(y_true, y_pred)
+    if metric == "youden":
+        # Youden's J = TPR - FPR
+        tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0,1]).ravel()
+        tpr = tp / (tp + fn + 1e-12)
+        fpr = fp / (fp + tn + 1e-12)
+        return tpr - fpr
+    raise ValueError(f"Unknown metric '{metric}'")
+
+
+def best_threshold(scores, labels, metric="balacc", steps=400):
     """
-    Return threshold that maximizes Balanced Accuracy on given (scores, labels).
+    Return threshold τ* that maximizes the chosen metric on (scores, labels).
     """
     if len(scores) == 0:
         return 0.5, 0.0
-    # candidate thresholds in [0,1]
     cand = np.linspace(0.0, 1.0, steps)
-    best_t, best_ba = 0.5, 0.0
+    best_t, best_val = 0.5, -1e9
     for t in cand:
         pred = (scores >= t).astype(int)
-        ba = balanced_accuracy_score(labels, pred)
-        if ba > best_ba:
-            best_ba, best_t = ba, t
-    return float(best_t), float(best_ba)
+        val = _metric_for_pred(labels, pred, metric=metric)
+        if val > best_val:
+            best_val, best_t = val, t
+    return float(best_t), float(best_val)
+
+
+def save_video_scores_csv(path_csv, vids, y_true, y_score):
+    import csv
+    os.makedirs(os.path.dirname(path_csv), exist_ok=True)
+    with open(path_csv, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["video_id", "label", "prob_fake"])
+        for v, y, s in zip(vids, y_true, y_score):
+            w.writerow([v, int(y), float(s)])
+    print(f"[eval] saved per-video scores to: {path_csv}")
 
 
 # -------------------------
@@ -267,36 +298,48 @@ def _get_branch_cfg_from_yaml(yaml_path: str, branch: str):
 def main():
     ap = argparse.ArgumentParser("CelebDF video-level evaluation")
     # Either pass a root or a YAML+branch
-    ap.add_argument("--val_root", help="e.g., ./celebdb_splits/val")
+    ap.add_argument("--val_root", help="e.g., ./celebdb_splits/{val|test}")
     ap.add_argument("--yaml", help="config/dataset/CelebDF.yml")
-    ap.add_argument("--branch", default="val_cfg", help="branch name in YAML (val_cfg|test_cfg)")
-    ap.add_argument("--ckpt", required=True, help="e.g., ./checkpoints/best_model.pt")
+    ap.add_argument("--branch", default="val_cfg", help="branch in YAML (val_cfg|test_cfg)")
+    ap.add_argument("--ckpt", required=True, help="e.g., ./checkpoints/best_model(.pt|_ema.pt)")
     ap.add_argument("--device", default="cuda:0")
     ap.add_argument("--batch", type=int, default=256)
     ap.add_argument("--no_channels_last", action="store_true")
     ap.add_argument("--bf16", action="store_true", help="Faster eval on H100 (minor numeric diffs)")
     ap.add_argument("--max-per-video", type=int, default=0, help="cap frames/video to mimic train/val")
     ap.add_argument("--strided", action="store_true", help="use uniform strided selection when capping")
+    # operating point control
+    ap.add_argument("--search-metric", default="balacc",
+                    choices=["balacc", "f1", "acc", "youden"],
+                    help="metric to optimize when finding threshold on this split")
+    ap.add_argument("--apply-threshold", type=float, default=None,
+                    help="if given, do NOT search; evaluate at this fixed τ (use τ* from VAL)")
+    ap.add_argument("--save-csv", default="",
+                    help="optional path to save per-video scores (CSV)")
     args = ap.parse_args()
 
     # Resolve root from YAML if needed
     if not args.val_root:
         if not args.yaml:
-            ap.error("Please provide either --val_root or both --yaml and --branch")
+            ap.error("Please provide either --val_root OR both --yaml and --branch")
         branch_cfg = _get_branch_cfg_from_yaml(args.yaml, args.branch)
-        val_root = branch_cfg["root"]
+        root = branch_cfg["root"]
+        # allow per-video cap from yaml if present
+        if args.max_per_video == 0:
+            k_yaml = int(branch_cfg.get("max_frames_per_video", 0) or 0)
+            args.max_per_video = k_yaml
     else:
-        val_root = args.val_root
+        root = args.val_root
 
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
 
     # 1) Load model
     model = load_model(args.ckpt, device)
 
-    # 2) Collect validation frames
-    data = list(iter_val_images(val_root))
+    # 2) Collect frames (VAL or TEST)
+    data = list(iter_split_images(root))
     if not data:
-        print(f"[eval] No images found under {val_root}")
+        print(f"[eval] No images found under {root}")
         return
 
     # Optional cap/strided to mirror train/val sampling
@@ -319,7 +362,7 @@ def main():
         bf16=args.bf16,
     )
 
-    # 4) Frame-level metrics at threshold 0.5
+    # 4) Frame-level metrics at fixed 0.5 (reference)
     frame_pred = (probs >= 0.5).astype(int)
     frame_acc  = accuracy_score(labels, frame_pred)
     frame_bal  = balanced_accuracy_score(labels, frame_pred)
@@ -339,8 +382,9 @@ def main():
     except ValueError:
         video_auc = float("nan")
 
-    # 6) Report
+    # 6) Report (threshold=0.5)
     print("\n================ VIDEO-LEVEL EVAL ================")
+    print(f"Split root: {root}")
     print(f"Frames: {len(labels)} | Videos: {len(vids)} | Max/vid: {max_vid_str}")
     print(
         f"Frame-level  Acc: {frame_acc:.4f}  AUC: {frame_auc:.4f}  "
@@ -352,16 +396,41 @@ def main():
     )
     print(f"Videos — Real: {(y_true==0).sum()}  Fake: {(y_true==1).sum()}")
 
-    # 7) Choose best operating point (maximize Balanced Accuracy) on videos
-    best_t, best_ba = best_balanced_threshold(y_score, y_true)
-    best_pred = (y_score >= best_t).astype(int)
-    print("\n---- Validation-chosen operating point (maximize Balanced Accuracy) ----")
-    print(f"Best threshold: {best_t:.4f}")
+    # 7) Operating point
+    print("\n---- Operating point selection ----")
+    if args.apply_threshold is not None:
+        t = float(args.apply_threshold)
+        op_pred = (y_score >= t).astype(int)
+        print(f"Applied threshold (from VAL): τ = {t:.4f}")
+    else:
+        # Find τ* on THIS split (use only for VAL; for TEST provide --apply-threshold)
+        t, best_val = best_threshold(y_score, y_true, metric=args.search_metric)
+        op_pred = (y_score >= t).astype(int)
+        print(f"Best threshold on this split (metric={args.search_metric}): τ* = {t:.4f}")
+        print(f"Best {args.search_metric}: {best_val:.4f}")
+
     print(
-        f"Video Acc@t*: {accuracy_score(y_true, best_pred):.4f}  "
-        f"BalAcc@t*: {best_ba:.4f}  F1@t*: {f1_score(y_true, best_pred, zero_division=0):.4f}"
+        f"Video Acc@τ: {accuracy_score(y_true, op_pred):.4f}  "
+        f"BalAcc@τ: {balanced_accuracy_score(y_true, op_pred):.4f}  "
+        f"F1@τ: {f1_score(y_true, op_pred, zero_division=0):.4f}"
     )
-    print("------------------------------------------------------------------------")
+    # Per-class precision/recall (video)
+    pr, rc, f1s, _ = precision_recall_fscore_support(y_true, op_pred, labels=[0,1], zero_division=0)
+    print(f"Class 0 (Real)  P: {pr[0]:.4f}  R: {rc[0]:.4f}")
+    print(f"Class 1 (Fake)  P: {pr[1]:.4f}  R: {rc[1]:.4f}")
+    tn, fp, fn, tp = confusion_matrix(y_true, op_pred, labels=[0,1]).ravel()
+    print(f"Confusion (video) | TN: {tn}  FP: {fp}  FN: {fn}  TP: {tp}")
+
+    # 8) Save per-video scores if requested
+    if args.save_csv:
+        save_video_scores_csv(args.save_csv, vids, y_true, y_score)
+
+    print("--------------------------------------------------")
+    print("NOTE:")
+    print(" • For fair paper numbers: choose τ* on the validation split,")
+    print("   then re-run this script on TEST with --apply-threshold τ*.")
+    print(" • AUC is threshold-free and should also be reported.")
+    print("--------------------------------------------------")
 
 
 if __name__ == "__main__":

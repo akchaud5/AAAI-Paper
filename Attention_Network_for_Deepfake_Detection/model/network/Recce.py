@@ -19,15 +19,27 @@ class FeedForward2D(nn.Module):
         return self.conv(x)
 
 class GlobalFilter(nn.Module):
-    def __init__(self, dim=728, h=20, w=11, fp32fft=True):
+    def __init__(self, dim=728, h=10, w=10, fp32fft=True):
         super().__init__()
         self.fp32fft = fp32fft
+        self.dim = dim
+        self.h = h
+        self.w = w
         self.complex_weight = nn.Parameter(
             torch.randn(h, w // 2 + 1, dim, 2, dtype=torch.float32) * 0.02
         )
 
     def forward(self, x):
         b, c, h, w = x.size()
+        
+        # Resize filter if input dimensions don't match
+        if h != self.h or w != self.w:
+            # Reinitialize with correct dimensions
+            self.h, self.w = h, w
+            self.complex_weight = nn.Parameter(
+                torch.randn(h, w // 2 + 1, self.dim, 2, dtype=torch.float32, device=x.device) * 0.02
+            )
+        
         x = x.permute(0, 2, 3, 1).contiguous()
 
         if self.fp32fft:
@@ -36,10 +48,10 @@ class GlobalFilter(nn.Module):
 
         x_fft = torch.fft.rfft2(x, dim=(1, 2), norm="ortho")
 
-        weight_real = torch.randn(h, w // 2 + 1, c, dtype=torch.float32, device=x_fft.device) * 0.02
-        weight_imag = torch.randn(h, w // 2 + 1, c, dtype=torch.float32, device=x_fft.device) * 0.02
-        weight = torch.complex(weight_real, weight_imag).unsqueeze(0)
-        weight = weight.expand(b, -1, -1, -1)
+        # Use learnable complex weights with proper tensor format
+        weight_real = self.complex_weight.contiguous()
+        weight = torch.view_as_complex(weight_real)
+        weight = weight.unsqueeze(0).repeat(b, 1, 1, 1)
 
         x_fft = x_fft * weight
 
@@ -207,10 +219,9 @@ class Recce(nn.Module):
         embedding = self.encoder.block6(embedding)
         embedding = self.encoder.block7(embedding)
 
+        # RESTORE CORE RECCE ARCHITECTURE: Enable frequency filter and cross-modal attention
         freq = self.filter(embedding)
-
         fusion = self.cma(embedding, freq) + embedding
-
         embedding = self.encoder.block8(fusion)
         img_att = self.attention(x, recons_x, embedding)
 

@@ -50,7 +50,7 @@ class DFDC(Dataset):
         return transforms.Compose(transform_list)
 
     def __load_data(self):
-        label_path = '/content/drive/MyDrive/DFDC-img_labels.csv'  # Corrected path
+        label_path = '/workspace/AAAI-Paper/Attention_Network_for_Deepfake_Detection/DFDC-img_labels.csv'  # Updated path
         with open(label_path, encoding="utf-8") as file:
             reader = csv.reader(file)
             next(reader)  # Skip header

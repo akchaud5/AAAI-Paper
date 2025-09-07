@@ -1,0 +1,28 @@
+model:
+  name: Recce
+  num_classes: 2
+
+config:
+  lambda_1: 0.1
+  lambda_2: 0.1
+  id: DFDC_Cross_Dataset_Test
+  debug: False
+  device: "cuda:0"
+  seed: 42
+  
+  # H100 Performance Optimizations
+  fused_adamw: true
+  compile_model: false
+  channels_last: true
+  allow_tf32: true
+  cudnn_benchmark: true
+
+data:
+  test_batch_size: 16
+  name: DFDC
+  file: "./config/dataset/H100_DFDC_dataset.yml"
+  test_branch: "test_cfg"
+  num_workers: 8
+  pin_memory: True
+  persistent_workers: True
+  prefetch_factor: 4

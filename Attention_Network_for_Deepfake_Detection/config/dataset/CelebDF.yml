@@ -1,71 +1,64 @@
-model:
-  name: Recce
-  num_classes: 2
+# config/dataset/CelebDF.yml
+# -------------------------------------------------
+# Cleaned CelebDB (k=120) splits on your machine
+# -------------------------------------------------
 
-config:
-  # ----------------- optimization -----------------
-  optimizer:
-    name: adam
-    lr: 0.0002
-    weight_decay: 0.00001
+# -------------------------- TRAIN ---------------------------
+train_cfg:
+  root: "/workspace/AAAI-Paper/Attention_Network_for_Deepfake_Detection/celebdb_clean/celebdb_splits_reduced_k120_dedup/train"
+  split: "train"
+  balance: True                 # use WeightedRandomSampler
+  # per-video sampling (kept for consistency; folders are already capped)
+  max_frames_per_video: 120
+  sampling_strategy: "strided_unique"
+  stride_hint: 5
+  drop_near_duplicates: True
+  sim_threshold: 0.985
+  sim_window: 6
+  return_path: False
 
-  # Adaptive LR when validation plateaus (prevents oscillation)
-  scheduler:
-    name: ReduceLROnPlateau
-    mode: max               # 'max' for frame_auc/frame_acc; 'min' if monitor=val_loss
-    factor: 0.5
-    patience: 2
-    threshold: 0.001
-    threshold_mode: abs
-    min_lr: 1.0e-6
+  transforms:
+    - name: Resize
+      params: {height: 299, width: 299}
+    - name: HorizontalFlip
+      params: {p: 0.5}
+    - name: Normalize
+      params: {mean: [0.5, 0.5, 0.5], std: [0.5, 0.5, 0.5]}
 
-  # ----------------- monitoring (frame-based) -----
-  # Drives LR and early-stop; video metrics are logged only.
-  monitor: frame_auc        # frame_auc | frame_acc | val_loss
+# --------------------------- VAL ----------------------------
+val_cfg:
+  root: "/workspace/AAAI-Paper/Attention_Network_for_Deepfake_Detection/celebdb_clean/celebdb_splits_reduced_k120_dedup/val"
+  split: "val"
+  balance: False
+  max_frames_per_video: 120
+  sampling_strategy: "strided_unique"
+  stride_hint: 5
+  drop_near_duplicates: True
+  sim_threshold: 0.985
+  sim_window: 6
+  return_path: True
 
-  # ----------------- run control ------------------
-  epochs: 100
-  resume: True
-  resume_best: True
-  extra_epochs: 100
+  transforms:
+    - name: Resize
+      params: {height: 299, width: 299}
+    - name: Normalize
+      params: {mean: [0.5, 0.5, 0.5], std: [0.5, 0.5, 0.5]}
 
-  # Early stop on smoothed monitored metric (frame-based)
-  early_stop:
-    mode: max               # 'max' for frame_auc/frame_acc; 'min' if monitor=val_loss
-    patience: 5
-    min_delta: 0.002
-    smooth_k: 3
-    min_epochs: 8
+# --------------------------- TEST ---------------------------
+test_cfg:
+  root: "/workspace/AAAI-Paper/Attention_Network_for_Deepfake_Detection/celebdb_clean/celebdb_splits_reduced_k120_dedup/test"
+  split: "test"
+  balance: False
+  max_frames_per_video: 120
+  sampling_strategy: "strided_unique"
+  stride_hint: 5
+  drop_near_duplicates: True
+  sim_threshold: 0.985
+  sim_window: 6
+  return_path: True
 
-  # ----------------- stability toggles ------------
-  allow_tf32: True
-  channels_last: True
-  compile_model: True
-  fused_adamw: False
-  cudnn_benchmark: True
-  use_ema_eval: True
-  deterministic_val: True
-  seed: 42
-
-  # ----------------- I/O & misc -------------------
-  save_dir: "./checkpoints_celebclean_k120"
-  log_dir: "./runs/celebclean_k120_tb"
-  debug: False
-  device: "cuda:0"
-  log_steps: 200
-  id: CelebClean_k120_run1
-  ckpt: ""
-
-data:
-  name: CelebDF
-  file: "config/dataset/CelebDF.yml"
-  train_batch_size: 32
-  val_batch_size: 64
-  test_batch_size: 64
-  num_workers: 4
-  pin_memory: True
-  persistent_workers: True
-  prefetch_factor: 4
-  train_branch: "train_cfg"
-  val_branch: "val_cfg"
-  test_branch: "test_cfg"
+  transforms:
+    - name: Resize
+      params: {height: 299, width: 299}
+    - name: Normalize
+      params: {mean: [0.5, 0.5, 0.5], std: [0.5, 0.5, 0.5]}

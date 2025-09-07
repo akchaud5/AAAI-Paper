@@ -1,0 +1,16 @@
+test_cfg:
+  root: "/workspace/AAAI-Paper/Attention_Network_for_Deepfake_Detection/dfdc_official_splits/test"
+  split: "test"
+  balance: false
+  num_candidates: 22
+  dedup_threshold: 10
+  transforms:
+    - name: "Resize"
+      params:
+        height: 299
+        width: 299
+    - name: "Normalize"
+      params:
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
+        max_pixel_value: 255.0

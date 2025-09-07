@@ -1,0 +1,47 @@
+test_cfg:
+  root: "/workspace/ff-c23"
+  split: "test"
+  compression: "c23"
+  manipulation_types: ["Deepfakes", "Face2Face", "FaceSwap", "NeuralTextures"]
+  transforms:
+    - name: "Resize"
+      params:
+        height: 299
+        width: 299
+    - name: "Normalize"
+      params:
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
+
+train_cfg:
+  root: "/workspace/ff-c23"
+  split: "train"
+  compression: "c23"
+  manipulation_types: ["Deepfakes", "Face2Face", "FaceSwap", "NeuralTextures"]
+  transforms:
+    - name: "Resize"
+      params:
+        height: 299
+        width: 299
+    - name: "HorizontalFlip"
+      params:
+        p: 0.5
+    - name: "Normalize"
+      params:
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]
+
+val_cfg:
+  root: "/workspace/ff-c23"
+  split: "val"
+  compression: "c23" 
+  manipulation_types: ["Deepfakes", "Face2Face", "FaceSwap", "NeuralTextures"]
+  transforms:
+    - name: "Resize"
+      params:
+        height: 299
+        width: 299
+    - name: "Normalize"
+      params:
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]

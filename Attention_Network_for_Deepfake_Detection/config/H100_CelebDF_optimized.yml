@@ -5,46 +5,65 @@ model:
 config:
   lambda_1: 0.1
   lambda_2: 0.1
+  epochs: 50
   distribute:
     backend: nccl
   optimizer:
-    name: adam
-    lr: 0.0002
-    weight_decay: 0.00001
-    # H100 optimizations
+    lr: 0.001  # Higher LR for larger batch size
+    weight_decay: 0.0001
     betas: [0.9, 0.999]
     eps: 1e-8
     amsgrad: False
+  # Advanced H100 scheduler
   scheduler:
-    name: StepLR
-    step_size: 15000  # Adjusted for larger batch size
-    gamma: 0.5
-  resume: False
+    name: ReduceLROnPlateau
+    mode: max
+    factor: 0.5
+    patience: 3
+    threshold: 0.002
+    threshold_mode: abs
+    min_lr: 0.000001
+  
+  # Advanced training control
+  resume: True
   resume_best: False
+  resume_path: "./checkpoints/step_3000_model.pt"
   id: CelebDF_H100_optimized
-  loss: binary_ce
-  metric: Acc
   debug: False
   device: "cuda:0"
-  log_steps: 50  # More frequent logging
+  log_steps: 50
+  seed: 42
   
-  # H100 specific optimizations
-  mixed_precision: True
-  compile_model: True
-  channels_last: True
-  gradient_clipping: 1.0
-  checkpoint_freq: 1000  # Save every 1000 steps
+  # H100 Performance Optimizations (MEMORY CONSERVATIVE)
+  fused_adamw: true          # Fused optimizer for H100
+  compile_model: false       # Disabled to save memory
+  channels_last: true        # Memory layout optimization
+  allow_tf32: true          # TensorFloat-32 for speed
+  cudnn_benchmark: true     # cuDNN auto-tuning
+  
+  # EMA for better generalization
+  use_ema_eval: false
+  deterministic_val: false   # Allow non-deterministic for speed
+  
+  # Monitoring and early stopping
+  monitor: "frame_auc"       # Monitor frame-level AUC
+  early_stop:
+    mode: max
+    patience: 8              # More patience for complex dataset
+    min_delta: 0.001
+    smooth_k: 3
+    min_epochs: 10
 
 data:
-  train_batch_size: 64    # Doubled for H100
-  val_batch_size: 128     # Larger for inference
-  test_batch_size: 128    # Larger for inference
+  train_batch_size: 12    # Increased for faster training
+  val_batch_size: 16      # Increased for faster validation
+  test_batch_size: 16     # Increased for faster testing
   name: CelebDF
-  file: "./config/dataset/CelebDF_H100.yml"
+  file: "./config/dataset/H100_CelebDF_dataset.yml"
   train_branch: "train_cfg"
-  val_branch: "test_cfg"
+  val_branch: "val_cfg"
   test_branch: "test_cfg"
-  num_workers: 12         # More workers for H100
-  pin_memory: True
+  num_workers: 8          # Increased workers for better throughput
+  pin_memory: True        # Re-enable for performance
   persistent_workers: True
-  prefetch_factor: 4      # Prefetch more batches
+  prefetch_factor: 4      # Increased prefetch for performance

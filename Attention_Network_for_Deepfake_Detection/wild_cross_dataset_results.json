@@ -1,0 +1,24 @@
+{
+  "dataset": "Wild_Deepfake",
+  "accuracy": 0.5127068557919622,
+  "auc": 0.5144284559079089,
+  "total_samples": 6768,
+  "test_time": 13.545223474502563,
+  "samples_per_sec": 499.65953036803245,
+  "confusion_matrix": [
+    [
+      3136,
+      234
+    ],
+    [
+      3064,
+      334
+    ]
+  ],
+  "class_distribution": {
+    "real_gt": 3370,
+    "fake_gt": 3398,
+    "real_pred": 6200,
+    "fake_pred": 568
+  }
+}
